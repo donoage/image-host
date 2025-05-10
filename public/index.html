@@ -72,12 +72,20 @@
     <p>This service provides directly hosted stock chart images from Finviz.</p>
 
     <div class="demo-section">
-        <h2>Direct Image URLs</h2>
-        <p>Use these direct image URLs in Notion or anywhere else:</p>
-        <code id="base-url">https://positive-consideration-production.up.railway.app/static/SYMBOL_chart.png</code>
+        <h2>How It Works</h2>
+        <p>This service has two main endpoints:</p>
+        <ol>
+            <li><strong>URL Getter</strong>: <code>/static/charts/SYMBOL</code> - Returns the direct image URL as text</li>
+            <li><strong>Image Viewer</strong>: <code>/static/SYMBOL_chart.png</code> - Shows the actual chart image</li>
+        </ol>
+        
+        <h3>Get Image URL</h3>
+        <p>To get the direct image URL as text, make a request to:</p>
+        <code>/static/charts/SYMBOL</code>
+        <p>Example response: <code>https://positive-consideration-production.up.railway.app/static/AAPL_chart.png</code></p>
         
         <div class="chart-container">
-            <h3>Example Charts</h3>
+            <h3>Example Images</h3>
             <p>Apple (AAPL):</p>
             <img src="/static/AAPL_chart.png" alt="AAPL Chart" onerror="this.onerror=null; preloadChart('AAPL');">
             
@@ -86,19 +94,19 @@
         </div>
 
         <h3>Test Your Symbol</h3>
-        <p>Enter a stock symbol to see its chart:</p>
+        <p>Enter a stock symbol to get its chart URL:</p>
         <div class="form-group">
             <input type="text" id="symbol-input" placeholder="Enter symbol (e.g. AMZN)">
-            <button onclick="showChart()">Show Chart</button>
+            <button onclick="getChartUrl()">Get URL</button>
         </div>
         
-        <div id="chart-result" style="display: none;">
-            <h4>Chart for <span id="chart-symbol"></span></h4>
-            <div class="chart-container">
-                <img id="result-chart" alt="Stock Chart">
+        <div id="url-result" style="display: none;">
+            <h4>URL for <span id="result-symbol"></span></h4>
+            <code id="result-url"></code>
+            <div class="chart-container" style="margin-top: 20px;">
+                <h4>Preview:</h4>
+                <img id="preview-image" alt="Chart Preview">
             </div>
-            <p>Direct URL for Notion:</p>
-            <code id="direct-url"></code>
         </div>
     </div>
 
@@ -129,10 +137,6 @@
     </div>
 
     <script>
-        // Set the base URL
-        document.getElementById('base-url').textContent = window.location.origin + '/static/SYMBOL_chart.png';
-        
-        // Function to preload a chart if it doesn't exist
         async function preloadChart(symbol) {
             try {
                 await fetch(`/static/charts/${symbol}`);
@@ -145,28 +149,27 @@
             }
         }
         
-        function showChart() {
+        async function getChartUrl() {
             const symbol = document.getElementById('symbol-input').value.trim().toUpperCase();
             if (!symbol) {
                 alert('Please enter a valid stock symbol');
                 return;
             }
             
-            // First trigger the generation/update of the chart
-            fetch(`/static/charts/${symbol}`)
-                .then(() => {
-                    const baseUrl = window.location.origin;
-                    const directUrl = `${baseUrl}/static/${symbol}_chart.png`;
-                    
-                    document.getElementById('chart-symbol').textContent = symbol;
-                    document.getElementById('result-chart').src = directUrl;
-                    document.getElementById('direct-url').textContent = directUrl;
-                    document.getElementById('chart-result').style.display = 'block';
-                })
-                .catch(error => {
-                    console.error('Error fetching chart:', error);
-                    alert('Error generating chart. Please try again.');
-                });
+            try {
+                // Get the URL from the endpoint
+                const response = await fetch(`/static/charts/${symbol}`);
+                const url = await response.text();
+                
+                // Update the UI
+                document.getElementById('result-symbol').textContent = symbol;
+                document.getElementById('result-url').textContent = url;
+                document.getElementById('preview-image').src = url;
+                document.getElementById('url-result').style.display = 'block';
+            } catch (error) {
+                console.error('Error getting chart URL:', error);
+                alert('Error getting chart URL. Please try again.');
+            }
         }
     </script>
 </body>

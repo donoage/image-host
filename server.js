@@ -387,12 +387,13 @@ if (!fs.existsSync(path.join(__dirname, 'public', 'static'))) {
   fs.mkdirSync(path.join(__dirname, 'public', 'static'), { recursive: true });
 }
 
-// Direct image hosting endpoint - fully static files
+// Direct image hosting endpoint - returns the URL as text
 app.get('/static/charts/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
     const formattedSymbol = symbol.toUpperCase();
     const filePath = path.join(__dirname, 'public', 'static', `${formattedSymbol}_chart.png`);
+    const publicUrl = `${req.protocol}://${req.get('host')}/static/${formattedSymbol}_chart.png`;
     
     // If file doesn't exist or is older than 24 hours, download a new one
     let needsDownload = true;
@@ -413,14 +414,9 @@ app.get('/static/charts/:symbol', async (req, res) => {
       fs.unlinkSync(chart.path);
     }
     
-    // Set headers for image
-    res.set('Content-Type', 'image/png');
-    res.set('Content-Disposition', `inline; filename="${formattedSymbol}_chart.png"`);
-    res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
-    res.set('Access-Control-Allow-Origin', '*'); // Allow cross-origin requests
-    
-    // Send the file directly instead of redirecting
-    return res.sendFile(filePath);
+    // Return just the URL as plain text
+    res.set('Content-Type', 'text/plain');
+    return res.send(publicUrl);
     
   } catch (error) {
     console.error('Error handling static chart request:', error);

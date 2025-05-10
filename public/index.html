@@ -33,6 +33,7 @@
             padding: 2px 5px;
             border-radius: 3px;
             font-family: monospace;
+            word-break: break-all;
         }
         .form-group {
             margin-bottom: 15px;
@@ -56,24 +57,32 @@
         th {
             background-color: #f2f2f2;
         }
+        button {
+            padding: 8px 15px;
+            background: #4a7eff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <h1>Finviz Chart Image Host</h1>
-    <p>This service downloads and hosts Finviz stock charts with direct access URLs.</p>
+    <p>This service provides directly hosted stock chart images from Finviz.</p>
 
     <div class="demo-section">
-        <h2>How to Use in Notion</h2>
-        <p>For Notion compatibility, use the following URL format:</p>
-        <code>https://positive-consideration-production.up.railway.app/images/charts/SYMBOL</code>
+        <h2>Direct Image URLs</h2>
+        <p>Use these direct image URLs in Notion or anywhere else:</p>
+        <code id="base-url">https://positive-consideration-production.up.railway.app/static/SYMBOL_chart.png</code>
         
         <div class="chart-container">
             <h3>Example Charts</h3>
             <p>Apple (AAPL):</p>
-            <img src="/images/charts/AAPL" alt="AAPL Chart">
+            <img src="/static/AAPL_chart.png" alt="AAPL Chart" onerror="this.onerror=null; preloadChart('AAPL');">
             
             <p>Microsoft (MSFT):</p>
-            <img src="/images/charts/MSFT" alt="MSFT Chart">
+            <img src="/static/MSFT_chart.png" alt="MSFT Chart" onerror="this.onerror=null; preloadChart('MSFT');">
         </div>
 
         <h3>Test Your Symbol</h3>
@@ -88,8 +97,8 @@
             <div class="chart-container">
                 <img id="result-chart" alt="Stock Chart">
             </div>
-            <p>URL for Notion:</p>
-            <code id="notion-url"></code>
+            <p>Direct URL for Notion:</p>
+            <code id="direct-url"></code>
         </div>
     </div>
 
@@ -120,6 +129,22 @@
     </div>
 
     <script>
+        // Set the base URL
+        document.getElementById('base-url').textContent = window.location.origin + '/static/SYMBOL_chart.png';
+        
+        // Function to preload a chart if it doesn't exist
+        async function preloadChart(symbol) {
+            try {
+                await fetch(`/static/charts/${symbol}`);
+                // Refresh the page after a short delay
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } catch (error) {
+                console.error('Error preloading chart:', error);
+            }
+        }
+        
         function showChart() {
             const symbol = document.getElementById('symbol-input').value.trim().toUpperCase();
             if (!symbol) {
@@ -127,13 +152,21 @@
                 return;
             }
             
-            const baseUrl = window.location.origin;
-            const chartUrl = `${baseUrl}/images/charts/${symbol}`;
-            
-            document.getElementById('chart-symbol').textContent = symbol;
-            document.getElementById('result-chart').src = chartUrl;
-            document.getElementById('notion-url').textContent = chartUrl;
-            document.getElementById('chart-result').style.display = 'block';
+            // First trigger the generation/update of the chart
+            fetch(`/static/charts/${symbol}`)
+                .then(() => {
+                    const baseUrl = window.location.origin;
+                    const directUrl = `${baseUrl}/static/${symbol}_chart.png`;
+                    
+                    document.getElementById('chart-symbol').textContent = symbol;
+                    document.getElementById('result-chart').src = directUrl;
+                    document.getElementById('direct-url').textContent = directUrl;
+                    document.getElementById('chart-result').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error fetching chart:', error);
+                    alert('Error generating chart. Please try again.');
+                });
         }
     </script>
 </body>

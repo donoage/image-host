@@ -392,8 +392,7 @@ app.get('/static/charts/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
     const formattedSymbol = symbol.toUpperCase();
-    const publicPath = `/static/${formattedSymbol}_chart.png`;
-    const filePath = path.join(__dirname, 'public', publicPath);
+    const filePath = path.join(__dirname, 'public', 'static', `${formattedSymbol}_chart.png`);
     
     // If file doesn't exist or is older than 24 hours, download a new one
     let needsDownload = true;
@@ -414,8 +413,14 @@ app.get('/static/charts/:symbol', async (req, res) => {
       fs.unlinkSync(chart.path);
     }
     
-    // Redirect to the static file URL for direct hosting
-    return res.redirect(publicPath);
+    // Set headers for image
+    res.set('Content-Type', 'image/png');
+    res.set('Content-Disposition', `inline; filename="${formattedSymbol}_chart.png"`);
+    res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+    res.set('Access-Control-Allow-Origin', '*'); // Allow cross-origin requests
+    
+    // Send the file directly instead of redirecting
+    return res.sendFile(filePath);
     
   } catch (error) {
     console.error('Error handling static chart request:', error);

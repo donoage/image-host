@@ -393,7 +393,10 @@ app.get('/static/charts/:symbol', async (req, res) => {
     const { symbol } = req.params;
     const formattedSymbol = symbol.toUpperCase();
     const filePath = path.join(__dirname, 'public', 'static', `${formattedSymbol}_chart.png`);
-    const publicUrl = `${req.protocol}://${req.get('host')}/static/${formattedSymbol}_chart.png`;
+    
+    // Always use HTTPS for Railway app
+    const host = req.get('host');
+    const publicUrl = `https://${host}/static/${formattedSymbol}_chart.png`;
     
     // If file doesn't exist or is older than 24 hours, download a new one
     let needsDownload = true;
@@ -414,7 +417,7 @@ app.get('/static/charts/:symbol', async (req, res) => {
       fs.unlinkSync(chart.path);
     }
     
-    // Return just the URL as plain text
+    // Return just the URL as plain text, no newline at the end
     res.set('Content-Type', 'text/plain');
     return res.send(publicUrl);
     

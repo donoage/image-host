@@ -252,8 +252,12 @@ if (pool) {
       
       const { image_data, filename } = result.rows[0];
       
+      // Ensure correct content type is set
       res.set('Content-Type', 'image/png');
       res.set('Content-Disposition', `inline; filename="${filename}"`);
+      res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+      
+      // Send the binary data
       return res.send(image_data);
     } catch (error) {
       console.error('Error retrieving chart:', error);

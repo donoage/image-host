@@ -15,11 +15,117 @@
         h1 {
             color: #333;
         }
+        .demo-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .chart-container {
+            margin: 20px 0;
+        }
+        .chart-container img {
+            max-width: 100%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        code {
+            background: #f5f5f5;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        button {
+            padding: 8px 15px;
+            background: #4a7eff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            width: 150px;
+        }
     </style>
 </head>
 <body>
-    <h1>Image Host Service</h1>
-    <p>Welcome to the Image Host API. Use our endpoints to upload and manage images.</p>
-    <p>For documentation, please refer to the API docs.</p>
+    <h1>Finviz Chart Image Host</h1>
+    <p>This service downloads, processes, and hosts Finviz stock charts in a PostgreSQL database.</p>
+
+    <div class="demo-section">
+        <h2>Example Usage</h2>
+        <p>To use these charts in your applications, you can directly link to them with:</p>
+        <code>https://positive-consideration-production.up.railway.app/charts/SYMBOL</code>
+        
+        <div class="chart-container">
+            <h3>Sample Chart for AAPL</h3>
+            <img src="/charts/AAPL" alt="AAPL Chart" id="sample-chart" onerror="this.onerror=null; this.src=''; this.alt='Chart not available yet - generate it first';">
+        </div>
+    </div>
+
+    <div class="demo-section">
+        <h2>Generate a New Chart</h2>
+        <p>Generate a new chart for any stock symbol:</p>
+        
+        <div class="form-group">
+            <input type="text" id="symbol-input" placeholder="Enter symbol (e.g. MSFT)">
+            <button id="generate-btn">Generate Chart</button>
+        </div>
+        
+        <div id="status-message"></div>
+        
+        <div class="chart-container" id="generated-chart-container" style="display: none;">
+            <h3>Generated Chart: <span id="generated-symbol"></span></h3>
+            <img id="generated-chart" alt="Generated Chart">
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('generate-btn').addEventListener('click', async function() {
+            const symbol = document.getElementById('symbol-input').value.trim().toUpperCase();
+            if (!symbol) {
+                alert('Please enter a valid symbol');
+                return;
+            }
+            
+            const statusElement = document.getElementById('status-message');
+            statusElement.textContent = `Generating chart for ${symbol}...`;
+            
+            try {
+                // First request to create the chart
+                const response = await fetch('/charts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ symbol })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    statusElement.textContent = `Chart for ${symbol} generated successfully.`;
+                    
+                    // Update the UI to show the new chart
+                    document.getElementById('generated-symbol').textContent = symbol;
+                    
+                    // Set random query parameter to avoid caching
+                    const timestamp = new Date().getTime();
+                    document.getElementById('generated-chart').src = `/charts/${symbol}?t=${timestamp}`;
+                    
+                    document.getElementById('generated-chart-container').style.display = 'block';
+                } else {
+                    statusElement.textContent = `Error: ${result.error || 'Failed to generate chart'}`;
+                }
+            } catch (error) {
+                statusElement.textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
 </body>
 </html> 

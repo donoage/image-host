@@ -252,10 +252,14 @@ if (pool) {
       
       const { image_data, filename } = result.rows[0];
       
-      // Ensure correct content type is set
+      // Set headers required for compatibility with Notion and other services
       res.set('Content-Type', 'image/png');
       res.set('Content-Disposition', `inline; filename="${filename}"`);
       res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+      res.set('Access-Control-Allow-Origin', '*'); // Allow cross-origin requests
+      res.set('Access-Control-Allow-Methods', 'GET');
+      res.set('Access-Control-Allow-Headers', 'Content-Type');
+      res.set('X-Content-Type-Options', 'nosniff');
       
       // Send the binary data
       return res.send(image_data);
@@ -377,6 +381,70 @@ if (pool) {
     res.status(503).json({ error: 'Database functionality not available' });
   });
 }
+
+// Create persistent public directory for chart images
+if (!fs.existsSync(path.join(__dirname, 'public', 'images'))) {
+  fs.mkdirSync(path.join(__dirname, 'public', 'images'), { recursive: true });
+}
+
+// Endpoint for Notion-compatible chart URLs - serves files from disk
+app.get('/images/charts/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const formattedSymbol = symbol.toUpperCase();
+    const filePath = path.join(__dirname, 'public', 'images', `${formattedSymbol}_chart.png`);
+    
+    // Check if file exists
+    if (fs.existsSync(filePath)) {
+      // If file exists and is less than 1 day old, serve it directly
+      const stats = fs.statSync(filePath);
+      const fileAge = (new Date().getTime() - stats.mtime.getTime()) / 1000 / 60 / 60;
+      
+      if (fileAge < 24) {
+        // Set headers for compatibility with Notion
+        res.set('Content-Type', 'image/png');
+        res.set('Content-Disposition', `inline; filename="${formattedSymbol}_chart.png"`);
+        res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+        res.set('Access-Control-Allow-Origin', '*'); // Allow cross-origin requests
+        res.set('Access-Control-Allow-Methods', 'GET');
+        res.set('Access-Control-Allow-Headers', 'Content-Type');
+        res.set('X-Content-Type-Options', 'nosniff');
+        
+        // Stream the file
+        return res.sendFile(filePath);
+      }
+    }
+    
+    // If file doesn't exist or is too old, download it
+    const chart = await downloadFinvizChart(symbol);
+    
+    // Copy to public directory with a more permanent name
+    fs.copyFileSync(chart.path, filePath);
+    
+    // Store in database too (don't wait for completion)
+    storeImage(symbol, chart.path, chart.filename).catch(err => {
+      console.error(`Error storing image in database: ${err.message}`);
+    });
+    
+    // Clean up temporary file
+    fs.unlinkSync(chart.path);
+    
+    // Set headers for compatibility with Notion
+    res.set('Content-Type', 'image/png');
+    res.set('Content-Disposition', `inline; filename="${formattedSymbol}_chart.png"`);
+    res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+    res.set('Access-Control-Allow-Origin', '*'); // Allow cross-origin requests
+    res.set('Access-Control-Allow-Methods', 'GET');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    res.set('X-Content-Type-Options', 'nosniff');
+    
+    // Send the file
+    return res.sendFile(filePath);
+  } catch (error) {
+    console.error('Error serving chart for Notion:', error);
+    res.status(500).json({ error: 'Failed to retrieve chart', details: error.message });
+  }
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {

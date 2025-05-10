@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Host</title>
+    <title>Finviz Chart Host</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -37,95 +37,104 @@
         .form-group {
             margin-bottom: 15px;
         }
-        button {
-            padding: 8px 15px;
-            background: #4a7eff;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-        }
         input {
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 3px;
             width: 150px;
         }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
     </style>
 </head>
 <body>
     <h1>Finviz Chart Image Host</h1>
-    <p>This service downloads, processes, and hosts Finviz stock charts in a PostgreSQL database.</p>
+    <p>This service downloads and hosts Finviz stock charts with direct access URLs.</p>
 
     <div class="demo-section">
-        <h2>Example Usage</h2>
-        <p>To use these charts in your applications, you can directly link to them with:</p>
-        <code>https://positive-consideration-production.up.railway.app/charts/SYMBOL</code>
+        <h2>How to Use in Notion</h2>
+        <p>For Notion compatibility, use the following URL format:</p>
+        <code>https://positive-consideration-production.up.railway.app/images/charts/SYMBOL</code>
         
         <div class="chart-container">
-            <h3>Sample Chart for AAPL</h3>
-            <img src="/charts/AAPL" alt="AAPL Chart" id="sample-chart" onerror="this.onerror=null; this.src=''; this.alt='Chart not available yet - generate it first';">
+            <h3>Example Charts</h3>
+            <p>Apple (AAPL):</p>
+            <img src="/images/charts/AAPL" alt="AAPL Chart">
+            
+            <p>Microsoft (MSFT):</p>
+            <img src="/images/charts/MSFT" alt="MSFT Chart">
+        </div>
+
+        <h3>Test Your Symbol</h3>
+        <p>Enter a stock symbol to see its chart:</p>
+        <div class="form-group">
+            <input type="text" id="symbol-input" placeholder="Enter symbol (e.g. AMZN)">
+            <button onclick="showChart()">Show Chart</button>
+        </div>
+        
+        <div id="chart-result" style="display: none;">
+            <h4>Chart for <span id="chart-symbol"></span></h4>
+            <div class="chart-container">
+                <img id="result-chart" alt="Stock Chart">
+            </div>
+            <p>URL for Notion:</p>
+            <code id="notion-url"></code>
         </div>
     </div>
 
     <div class="demo-section">
-        <h2>Generate a New Chart</h2>
-        <p>Generate a new chart for any stock symbol:</p>
-        
-        <div class="form-group">
-            <input type="text" id="symbol-input" placeholder="Enter symbol (e.g. MSFT)">
-            <button id="generate-btn">Generate Chart</button>
-        </div>
-        
-        <div id="status-message"></div>
-        
-        <div class="chart-container" id="generated-chart-container" style="display: none;">
-            <h3>Generated Chart: <span id="generated-symbol"></span></h3>
-            <img id="generated-chart" alt="Generated Chart">
-        </div>
+        <h2>API Reference</h2>
+        <table>
+            <tr>
+                <th>Endpoint</th>
+                <th>Description</th>
+            </tr>
+            <tr>
+                <td><code>/images/charts/:symbol</code></td>
+                <td>Get a chart image by symbol (Notion-compatible)</td>
+            </tr>
+            <tr>
+                <td><code>/charts/:symbol</code></td>
+                <td>Get a chart image by symbol (from database)</td>
+            </tr>
+            <tr>
+                <td><code>/symbols</code></td>
+                <td>List all available chart symbols</td>
+            </tr>
+            <tr>
+                <td><code>/batch-charts</code></td>
+                <td>Process multiple symbols at once (POST)</td>
+            </tr>
+        </table>
     </div>
 
     <script>
-        document.getElementById('generate-btn').addEventListener('click', async function() {
+        function showChart() {
             const symbol = document.getElementById('symbol-input').value.trim().toUpperCase();
             if (!symbol) {
-                alert('Please enter a valid symbol');
+                alert('Please enter a valid stock symbol');
                 return;
             }
             
-            const statusElement = document.getElementById('status-message');
-            statusElement.textContent = `Generating chart for ${symbol}...`;
+            const baseUrl = window.location.origin;
+            const chartUrl = `${baseUrl}/images/charts/${symbol}`;
             
-            try {
-                // First request to create the chart
-                const response = await fetch('/charts', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ symbol })
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    statusElement.textContent = `Chart for ${symbol} generated successfully.`;
-                    
-                    // Update the UI to show the new chart
-                    document.getElementById('generated-symbol').textContent = symbol;
-                    
-                    // Set random query parameter to avoid caching
-                    const timestamp = new Date().getTime();
-                    document.getElementById('generated-chart').src = `/charts/${symbol}?t=${timestamp}`;
-                    
-                    document.getElementById('generated-chart-container').style.display = 'block';
-                } else {
-                    statusElement.textContent = `Error: ${result.error || 'Failed to generate chart'}`;
-                }
-            } catch (error) {
-                statusElement.textContent = `Error: ${error.message}`;
-            }
-        });
+            document.getElementById('chart-symbol').textContent = symbol;
+            document.getElementById('result-chart').src = chartUrl;
+            document.getElementById('notion-url').textContent = chartUrl;
+            document.getElementById('chart-result').style.display = 'block';
+        }
     </script>
 </body>
 </html> 

@@ -387,46 +387,45 @@ if (!fs.existsSync(path.join(__dirname, 'public', 'static'))) {
   fs.mkdirSync(path.join(__dirname, 'public', 'static'), { recursive: true });
 }
 
-// Middleware to handle direct image requests and generate them if needed
-app.use('/static/:filename', async (req, res, next) => {
-  // Check if this is a chart image request
-  const filename = req.params.filename;
-  if (!filename.match(/^[A-Z0-9]+_chart\.png$/i)) {
-    return next(); // Not a chart image request, continue to normal static file handling
-  }
-  
-  // Extract symbol from filename
-  const symbol = filename.split('_')[0].toUpperCase();
-  
-  // Define paths
-  const filePath = path.join(__dirname, 'public', 'static', filename);
-  
-  // Check if file exists and is recent
-  let needsDownload = true;
-  if (fs.existsSync(filePath)) {
-    const stats = fs.statSync(filePath);
-    const fileAge = (new Date().getTime() - stats.mtime.getTime()) / 1000 / 60 / 60;
+// Special handler for direct chart image requests that might not exist yet
+app.get('/static/:filename', async (req, res, next) => {
+  try {
+    // Check if this is a chart image request
+    const filename = req.params.filename;
+    if (!filename.match(/^[A-Z0-9]+_chart\.png$/i)) {
+      return next(); // Not a chart image request, continue to normal static file handling
+    }
     
-    if (fileAge < 24) {
-      needsDownload = false;
+    // Extract symbol from filename
+    const symbol = filename.split('_')[0].toUpperCase();
+    
+    // Define paths
+    const filePath = path.join(__dirname, 'public', 'static', filename);
+    
+    // Check if file exists and is recent (if exists, static middleware will handle it)
+    if (fs.existsSync(filePath)) {
+      const stats = fs.statSync(filePath);
+      const fileAge = (new Date().getTime() - stats.mtime.getTime()) / 1000 / 60 / 60;
+      
+      if (fileAge < 24) {
+        return next(); // Let static middleware serve the file
+      }
     }
+    
+    // If we get here, we need to download the file
+    console.log(`Auto-generating chart for ${symbol} from direct image request`);
+    const chart = await downloadFinvizChart(symbol);
+    fs.copyFileSync(chart.path, filePath);
+    fs.unlinkSync(chart.path);
+    
+    // Serve the file directly instead of going through static middleware
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.sendFile(filePath);
+  } catch (error) {
+    console.error(`Error handling direct chart request:`, error);
+    return res.status(500).send('Error generating chart image');
   }
-  
-  // Download if needed
-  if (needsDownload) {
-    try {
-      console.log(`Auto-generating chart for ${symbol} from direct image request`);
-      const chart = await downloadFinvizChart(symbol);
-      fs.copyFileSync(chart.path, filePath);
-      fs.unlinkSync(chart.path);
-    } catch (error) {
-      console.error(`Error auto-generating chart for ${symbol}:`, error);
-      // Continue anyway - the static middleware will return 404 if the file still doesn't exist
-    }
-  }
-  
-  // Continue to static file handling
-  next();
 });
 
 // Direct image hosting endpoint - returns the URL as text

@@ -381,7 +381,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
   // Try to initialize database after server starts, but don't block startup
   if (pool) {

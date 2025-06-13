@@ -7,6 +7,7 @@ const fs = require('fs');
 const util = require('util');
 const stream = require('stream');
 const pipeline = util.promisify(stream.pipeline);
+const multer = require('multer');
 
 // Initialize Express app
 const app = express();
@@ -73,6 +74,37 @@ async function initializeDatabase() {
     if (client) client.release();
   }
 }
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, 'public', 'static');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Use the original filename or generate from ticker
+    const filename = req.body.filename || file.originalname;
+    cb(null, filename);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: function (req, file, cb) {
+    // Only allow PNG files
+    if (file.mimetype === 'image/png') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PNG files are allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
 
 // Basic route to verify server is running - doesn't require DB
 app.get('/', (req, res) => {
@@ -381,6 +413,137 @@ if (pool) {
     res.status(503).json({ error: 'Database functionality not available' });
   });
 }
+
+// Upload endpoint for chart images
+app.post('/upload', upload.single('image'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const filename = req.file.filename;
+    const filePath = req.file.path;
+    
+    // Validate filename format (should be TICKER_chart.png)
+    if (!filename.match(/^[A-Z0-9]+_chart\.png$/i)) {
+      // Clean up the uploaded file
+      fs.unlinkSync(filePath);
+      return res.status(400).json({ 
+        error: 'Invalid filename format. Expected: TICKER_chart.png' 
+      });
+    }
+
+    // Extract ticker from filename
+    const ticker = filename.split('_')[0].toUpperCase();
+    
+    console.log(`Successfully uploaded chart for ${ticker}: ${filename}`);
+    
+    // Return success response with the public URL
+    const host = req.get('host');
+    const publicUrl = `https://${host}/static/${filename}`;
+    
+    res.json({
+      success: true,
+      message: `Chart uploaded successfully for ${ticker}`,
+      filename: filename,
+      ticker: ticker,
+      url: publicUrl,
+      size: req.file.size
+    });
+    
+  } catch (error) {
+    console.error('Upload error:', error);
+    
+    // Clean up file if it exists
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    res.status(500).json({ 
+      error: 'Upload failed', 
+      details: error.message 
+    });
+  }
+});
+
+// Batch upload endpoint for multiple charts
+app.post('/upload-batch', upload.array('images', 100), (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const results = [];
+    const errors = [];
+    const host = req.get('host');
+
+    for (const file of req.files) {
+      try {
+        const filename = file.filename;
+        
+        // Validate filename format
+        if (!filename.match(/^[A-Z0-9]+_chart\.png$/i)) {
+          fs.unlinkSync(file.path);
+          errors.push({
+            filename: filename,
+            error: 'Invalid filename format. Expected: TICKER_chart.png'
+          });
+          continue;
+        }
+
+        const ticker = filename.split('_')[0].toUpperCase();
+        const publicUrl = `https://${host}/static/${filename}`;
+        
+        results.push({
+          ticker: ticker,
+          filename: filename,
+          url: publicUrl,
+          size: file.size
+        });
+        
+        console.log(`Successfully uploaded chart for ${ticker}: ${filename}`);
+        
+      } catch (error) {
+        console.error(`Error processing file ${file.filename}:`, error);
+        
+        // Clean up file
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+        
+        errors.push({
+          filename: file.filename,
+          error: error.message
+        });
+      }
+    }
+
+    res.json({
+      success: errors.length === 0,
+      uploaded: results.length,
+      failed: errors.length,
+      results: results,
+      errors: errors
+    });
+    
+  } catch (error) {
+    console.error('Batch upload error:', error);
+    
+    // Clean up any uploaded files
+    if (req.files) {
+      req.files.forEach(file => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+    }
+    
+    res.status(500).json({ 
+      error: 'Batch upload failed', 
+      details: error.message 
+    });
+  }
+});
 
 // Create directories for static chart images
 if (!fs.existsSync(path.join(__dirname, 'public', 'static'))) {
